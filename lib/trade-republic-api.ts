@@ -31,6 +31,7 @@ export interface TRLoginInitResponse {
   processId?: string;
   countdownInSeconds?: number;
   error?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface TRLoginVerifyResponse {
@@ -105,42 +106,127 @@ export async function initiateLogin(phoneNumber: string, pin: string): Promise<T
       pin,
     });
 
-    const data = await response.json();
-    console.log(`[TR API] Login init response:`, { status: response.status, hasProcessId: !!data.processId });
+    // Get raw response text first for debugging
+    const responseText = await response.text();
+    let data: Record<string, unknown> = {};
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      console.error(`[TR API] Failed to parse response: ${responseText.substring(0, 500)}`);
+      data = { rawResponse: responseText.substring(0, 200) };
+    }
+
+    console.log(`[TR API] Login init response:`, { 
+      status: response.status, 
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      data 
+    });
 
     if (!response.ok) {
+      // Build detailed error message
+      const errorDetails = {
+        status: response.status,
+        statusText: response.statusText,
+        message: data.message || data.error || data.errorMessage,
+        code: data.errorCode || data.code,
+        raw: JSON.stringify(data).substring(0, 300),
+      };
+      
+      console.error(`[TR API] Login failed:`, errorDetails);
+
       // Handle specific error cases
       if (response.status === 401) {
-        return { error: 'PIN incorrect. Verifiez votre PIN Trade Republic.' };
+        return { 
+          error: `PIN incorrect ou numero invalide. (${response.status}: ${data.message || data.error || 'Unauthorized'})`,
+          details: errorDetails,
+        };
       }
       if (response.status === 429) {
-        return { error: 'Trop de tentatives. Attendez quelques minutes.' };
+        return { 
+          error: `Trop de tentatives. Attendez quelques minutes. (${response.status})`,
+          details: errorDetails,
+        };
       }
-      return { error: data.message || data.error || `Erreur ${response.status}` };
+      if (response.status === 400) {
+        return { 
+          error: `Requete invalide: ${data.message || data.error || 'Bad Request'}`,
+          details: errorDetails,
+        };
+      }
+      if (response.status === 403) {
+        return { 
+          error: `Acces refuse: ${data.message || data.error || 'Forbidden'}`,
+          details: errorDetails,
+        };
+      }
+      if (response.status === 404) {
+        return { 
+          error: `Endpoint non trouve. L'API Trade Republic a peut-etre change.`,
+          details: errorDetails,
+        };
+      }
+      if (response.status >= 500) {
+        return { 
+          error: `Erreur serveur Trade Republic (${response.status}). Reessayez plus tard.`,
+          details: errorDetails,
+        };
+      }
+      
+      return { 
+        error: `Erreur Trade Republic: ${data.message || data.error || response.statusText || `Code ${response.status}`}`,
+        details: errorDetails,
+      };
     }
 
     if (!data.processId) {
-      return { error: 'Reponse invalide de Trade Republic (pas de processId)' };
+      console.error(`[TR API] No processId in response:`, data);
+      return { 
+        error: `Reponse invalide de Trade Republic (pas de processId). Data: ${JSON.stringify(data).substring(0, 100)}`,
+        details: { data },
+      };
     }
 
     // Store pending login for verification step
     pendingLogins.set(phoneNumber, {
-      processId: data.processId,
+      processId: data.processId as string,
       phoneNumber,
       pin,
       expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
     });
 
+    console.log(`[TR API] Login initiated successfully, processId: ${data.processId}`);
+
     return {
-      processId: data.processId,
-      countdownInSeconds: data.countdownInSeconds || 60,
+      processId: data.processId as string,
+      countdownInSeconds: (data.countdownInSeconds as number) || 60,
     };
   } catch (error) {
-    console.error('[TR API] Login init error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[TR API] Login init error:', { message: errorMsg, stack: errorStack });
+    
     if (error instanceof Error && error.name === 'AbortError') {
-      return { error: 'Timeout - Trade Republic ne repond pas' };
+      return { 
+        error: 'Timeout - Trade Republic ne repond pas (15s)',
+        details: { timeout: true, message: errorMsg },
+      };
     }
-    return { error: 'Impossible de contacter Trade Republic' };
+    
+    // Check for network errors
+    if (errorMsg.includes('fetch') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
+      return { 
+        error: `Impossible de contacter Trade Republic: ${errorMsg}`,
+        details: { networkError: true, message: errorMsg },
+      };
+    }
+    
+    return { 
+      error: `Erreur inattendue: ${errorMsg}`,
+      details: { message: errorMsg, stack: errorStack },
+    };
   }
 }
 
