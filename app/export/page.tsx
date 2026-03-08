@@ -15,6 +15,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { 
   Download, 
   FileSpreadsheet, 
   Clock, 
@@ -24,6 +30,11 @@ import {
   BarChart3,
   Activity,
   History,
+  Code,
+  ExternalLink,
+  Copy,
+  Check,
+  Terminal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -86,6 +97,39 @@ export default function ExportPage() {
   ]);
 
   const [isExporting, setIsExporting] = useState(false);
+  const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
+
+  const apiEndpoints = [
+    {
+      name: 'Export Complet',
+      method: 'GET',
+      path: '/api/export',
+      description: 'Toutes les donnees (marches, ETFs, arbitrage, signaux)',
+      params: 'format=json|csv, include=markets,etfs,arbitrage,signals',
+    },
+    {
+      name: 'Marches (Binance)',
+      method: 'GET',
+      path: '/api/export/markets',
+      description: 'Prix XAU/USD, XAG/USD, EUR/USD depuis Binance',
+      params: '-',
+    },
+    {
+      name: 'ETFs (Trade Republic)',
+      method: 'GET',
+      path: '/api/export/etfs',
+      description: 'Instruments ETF avec bid/ask/spread',
+      params: '-',
+    },
+  ];
+
+  const copyToClipboard = async (text: string, id: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedEndpoint(id);
+    setTimeout(() => setCopiedEndpoint(null), 2000);
+  };
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://v0-market-intelligence-platform-zeta.vercel.app';
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -136,11 +180,106 @@ export default function ExportPage() {
     { key: 'includeHistory', label: 'Données historiques', icon: <History className="h-5 w-5" />, description: 'Historique des signaux et des prix' },
   ] as const;
 
+  const pythonCode = `#!/usr/bin/env python3
+"""
+Market Intelligence Platform - Export to Excel
+Fetches data from the API and pushes to Excel using xlwings
+"""
+
+import requests
+import xlwings as xw
+from datetime import datetime
+
+# Configuration
+API_BASE_URL = "${baseUrl}"
+
+def fetch_all_data():
+    """Fetch all market data from the API"""
+    url = f"{API_BASE_URL}/api/export?format=json"
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+def export_to_excel(data, excel_path="market_data.xlsx"):
+    """Export data to Excel using xlwings"""
+    wb = xw.Book()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Markets sheet
+    if "markets" in data:
+        ws = wb.sheets.add("Markets")
+        ws.range("A1").value = "Market Data - " + timestamp
+        headers = ["Symbol", "Price", "Currency", "Last Update"]
+        ws.range("A3").value = headers
+        row = 4
+        for key, market in data["markets"]["binance"].items():
+            ws.range(f"A{row}").value = [
+                market["pair"], market["price"],
+                market["currency"], market["lastUpdate"]
+            ]
+            row += 1
+    
+    # ETFs sheet
+    if "etfs" in data:
+        ws = wb.sheets.add("ETFs")
+        ws.range("A1").value = "ETF Data - " + timestamp
+        headers = ["ISIN", "Name", "Bid", "Ask", "Last", "Spread %"]
+        ws.range("A3").value = headers
+        row = 4
+        for etf in data["etfs"]["instruments"]:
+            ws.range(f"A{row}").value = [
+                etf["isin"], etf["name"], etf["bid"],
+                etf["ask"], etf["last"], etf["spreadPercent"]
+            ]
+            row += 1
+    
+    wb.save(excel_path)
+    print(f"Saved to {excel_path}")
+
+if __name__ == "__main__":
+    data = fetch_all_data()
+    export_to_excel(data)
+`;
+
+  const curlExamples = `# Exporter toutes les donnees en JSON
+curl "${baseUrl}/api/export"
+
+# Exporter en CSV
+curl "${baseUrl}/api/export?format=csv" -o export.csv
+
+# Exporter uniquement les marches
+curl "${baseUrl}/api/export/markets"
+
+# Exporter uniquement les ETFs
+curl "${baseUrl}/api/export/etfs"
+
+# Exporter avec filtre (marches + signaux seulement)
+curl "${baseUrl}/api/export?include=markets,signals"
+`;
+
   return (
     <TerminalLayout title="Export">
       <div className="p-4 space-y-6">
-        {/* Export Configuration */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Tabs defaultValue="manual" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
+            <TabsTrigger value="manual" className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Export Manuel
+            </TabsTrigger>
+            <TabsTrigger value="api" className="flex items-center gap-2">
+              <Code className="h-4 w-4" />
+              API
+            </TabsTrigger>
+            <TabsTrigger value="python" className="flex items-center gap-2">
+              <Terminal className="h-4 w-4" />
+              Python
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Manual Export Tab */}
+          <TabsContent value="manual" className="mt-6">
+            {/* Export Configuration */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Data Selection */}
           <div className="terminal-panel p-4">
             <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-4">
@@ -456,6 +595,192 @@ export default function ExportPage() {
             </Button>
           </div>
         </div>
+          </TabsContent>
+
+          {/* API Endpoints Tab */}
+          <TabsContent value="api" className="mt-6 space-y-6">
+            <div className="terminal-panel p-4">
+              <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                <Code className="h-4 w-4" />
+                Endpoints API REST
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Utilisez ces endpoints pour recuperer les donnees depuis votre serveur Debian ou tout autre client HTTP.
+              </p>
+              
+              <div className="space-y-3">
+                {apiEndpoints.map((endpoint) => (
+                  <div 
+                    key={endpoint.path}
+                    className="p-4 rounded-lg border border-border bg-surface-2/50"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs font-mono bg-primary/10 text-primary border-primary/30">
+                            {endpoint.method}
+                          </Badge>
+                          <span className="font-medium text-sm">{endpoint.name}</span>
+                        </div>
+                        <code className="text-xs text-muted-foreground font-mono block mb-2">
+                          {baseUrl}{endpoint.path}
+                        </code>
+                        <p className="text-xs text-muted-foreground">{endpoint.description}</p>
+                        {endpoint.params !== '-' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <span className="text-gold">Params:</span> {endpoint.params}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard(`${baseUrl}${endpoint.path}`, endpoint.path)}
+                        >
+                          {copiedEndpoint === endpoint.path ? (
+                            <Check className="h-4 w-4 text-[var(--positive)]" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                        >
+                          <a href={`${endpoint.path}`} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* cURL Examples */}
+            <div className="terminal-panel p-4">
+              <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                <Terminal className="h-4 w-4" />
+                Exemples cURL
+              </h3>
+              <div className="relative">
+                <pre className="bg-surface-1 p-4 rounded-lg text-xs font-mono overflow-x-auto text-muted-foreground">
+                  {curlExamples}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 right-2"
+                  onClick={() => copyToClipboard(curlExamples, 'curl')}
+                >
+                  {copiedEndpoint === 'curl' ? (
+                    <Check className="h-4 w-4 text-[var(--positive)]" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Python Script Tab */}
+          <TabsContent value="python" className="mt-6 space-y-6">
+            <div className="terminal-panel p-4">
+              <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                <Terminal className="h-4 w-4" />
+                Script Python + xlwings
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Ce script recupere les donnees de l'API et les exporte vers Excel avec xlwings.
+                Compatible avec votre setup Debian -{'>'} Python -{'>'} Excel.
+              </p>
+              
+              {/* Requirements */}
+              <div className="bg-surface-1 p-3 rounded-lg mb-4">
+                <p className="text-xs font-mono text-muted-foreground mb-2">
+                  <span className="text-gold"># Installation des dependances</span>
+                </p>
+                <code className="text-xs font-mono text-foreground">
+                  pip install requests xlwings pandas
+                </code>
+              </div>
+
+              {/* Python Code */}
+              <div className="relative">
+                <pre className="bg-surface-1 p-4 rounded-lg text-xs font-mono overflow-x-auto text-muted-foreground max-h-[500px] overflow-y-auto">
+                  {pythonCode}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 right-2"
+                  onClick={() => copyToClipboard(pythonCode, 'python')}
+                >
+                  {copiedEndpoint === 'python' ? (
+                    <Check className="h-4 w-4 text-[var(--positive)]" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+
+              {/* Usage */}
+              <div className="mt-4 p-4 border border-border rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Utilisation</h4>
+                <div className="space-y-2 text-xs text-muted-foreground font-mono">
+                  <p><span className="text-gold">$</span> python export_to_excel.py</p>
+                  <p className="text-muted-foreground/70"># Affiche les donnees JSON</p>
+                  <p><span className="text-gold">$</span> python export_to_excel.py market_data.xlsx</p>
+                  <p className="text-muted-foreground/70"># Exporte vers Excel</p>
+                  <p><span className="text-gold">$</span> python export_to_excel.py --csv ./exports</p>
+                  <p className="text-muted-foreground/70"># Exporte en CSV vers le dossier</p>
+                </div>
+              </div>
+
+              {/* Automation tip */}
+              <div className="mt-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <h4 className="text-sm font-medium text-primary mb-2">Automatisation (cron)</h4>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Pour executer automatiquement toutes les 5 minutes :
+                </p>
+                <code className="text-xs font-mono text-foreground block bg-surface-1 p-2 rounded">
+                  */5 * * * * /usr/bin/python3 /path/to/export_to_excel.py /path/to/data.xlsx
+                </code>
+              </div>
+            </div>
+
+            {/* Download script */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const blob = new Blob([pythonCode], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'export_to_excel.py';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Telecharger le script Python
+              </Button>
+              <Button
+                variant="outline"
+                asChild
+              >
+                <a href="/api/export" target="_blank">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Tester l'API
+                </a>
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </TerminalLayout>
   );
