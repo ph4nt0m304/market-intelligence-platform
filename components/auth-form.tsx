@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { APP_NAME } from '@/lib/branding';
-import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp } from 'lucide-react';
+import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp, Bug, Copy, Check, AlertTriangle, Info } from 'lucide-react';
 
 export function AuthForm() {
   const router = useRouter();
@@ -18,6 +18,8 @@ export function AuthForm() {
   const [step, setStep] = useState<'phone' | 'pin'>('phone');
   const [smsSent, setSmsSent] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{ code?: string; logs: string[] }>({ logs: [] });
+  const [showDebug, setShowDebug] = useState(false);
 
   // Mark component as mounted to avoid hydration mismatch
   useEffect(() => {
@@ -56,36 +58,63 @@ export function AuthForm() {
     }
   };
 
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => ({
+      ...prev,
+      logs: [...prev.logs.slice(-19), `[${timestamp}] ${message}`]
+    }));
+  };
+
   const handleSendSms = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    addDebugLog(`Tentative d'envoi SMS vers: ${phoneNumber}`);
 
     try {
       if (!phoneNumber) {
-        setError('Veuillez entrer votre numero de telephone');
+        const err = 'Veuillez entrer votre numero de telephone';
+        setError(err);
+        addDebugLog(`ERREUR: ${err}`);
         setIsLoading(false);
         return;
       }
 
+      addDebugLog('Appel API: POST /api/auth/sms');
       const response = await fetch('/api/auth/sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneNumber }),
       });
 
+      addDebugLog(`Reponse API: Status ${response.status}`);
       const data = await response.json();
+      addDebugLog(`Donnees: ${JSON.stringify(data)}`);
 
       if (!response.ok || !data.success) {
-        setError(data.error || 'Erreur lors de l\'envoi du SMS');
+        const errMsg = data.error || 'Erreur lors de l\'envoi du SMS';
+        setError(errMsg);
+        addDebugLog(`ERREUR: ${errMsg}`);
         setIsLoading(false);
         return;
       }
 
+      // Store debug code if available
+      if (data.debugCode) {
+        setDebugInfo(prev => ({ ...prev, code: data.debugCode }));
+        addDebugLog(`CODE DEBUG RECU: ${data.debugCode}`);
+      } else {
+        addDebugLog('Aucun code debug retourne (production mode ou SMS reel envoye)');
+      }
+
       setSmsSent(true);
       setStep('pin');
-    } catch {
-      setError('Erreur de connexion. Verifiez votre connexion internet.');
+      addDebugLog('SMS envoye avec succes, passage a l\'etape PIN');
+    } catch (err) {
+      const errMsg = 'Erreur de connexion. Verifiez votre connexion internet.';
+      setError(errMsg);
+      addDebugLog(`ERREUR RESEAU: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsLoading(false);
     }
@@ -95,30 +124,41 @@ export function AuthForm() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    addDebugLog(`Tentative de verification du code: ${pin}`);
 
     try {
       if (!pin) {
-        setError('Veuillez entrer le code PIN recu par SMS');
+        const err = 'Veuillez entrer le code PIN recu par SMS';
+        setError(err);
+        addDebugLog(`ERREUR: ${err}`);
         setIsLoading(false);
         return;
       }
 
       // First verify the SMS code
+      addDebugLog('Appel API: PUT /api/auth/sms (verification)');
       const verifyResponse = await fetch('/api/auth/sms', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneNumber, code: pin }),
       });
 
+      addDebugLog(`Reponse verification: Status ${verifyResponse.status}`);
       const verifyData = await verifyResponse.json();
+      addDebugLog(`Donnees verification: ${JSON.stringify(verifyData)}`);
 
       if (!verifyResponse.ok || !verifyData.success) {
-        setError(verifyData.error || 'Code de verification invalide');
+        const errMsg = verifyData.error || 'Code de verification invalide';
+        setError(errMsg);
+        addDebugLog(`ERREUR VERIFICATION: ${errMsg}`);
         setIsLoading(false);
         return;
       }
 
+      addDebugLog('Code verifie avec succes!');
+
       // Code verified - create session
+      addDebugLog('Creation de la session...');
       const sessionResponse = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,10 +169,14 @@ export function AuthForm() {
         }),
       });
 
+      addDebugLog(`Reponse session: Status ${sessionResponse.status}`);
       const sessionData = await sessionResponse.json();
+      addDebugLog(`Donnees session: ${JSON.stringify(sessionData)}`);
 
       if (!sessionResponse.ok) {
-        setError(sessionData.error || 'Erreur lors de la creation de session');
+        const errMsg = sessionData.error || 'Erreur lors de la creation de session';
+        setError(errMsg);
+        addDebugLog(`ERREUR SESSION: ${errMsg}`);
         setIsLoading(false);
         return;
       }
@@ -143,9 +187,12 @@ export function AuthForm() {
         timestamp: new Date().toISOString(),
       }));
 
+      addDebugLog('Session creee, redirection vers dashboard...');
       router.push('/dashboard');
-    } catch {
-      setError('Erreur de connexion. Verifiez votre connexion internet.');
+    } catch (err) {
+      const errMsg = 'Erreur de connexion. Verifiez votre connexion internet.';
+      setError(errMsg);
+      addDebugLog(`ERREUR RESEAU: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsLoading(false);
     }
@@ -345,8 +392,124 @@ export function AuthForm() {
               </p>
             </div>
           )}
+
+          {/* Debug Toggle */}
+          <div className="pt-4 border-t border-border">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-foreground"
+              onClick={() => setShowDebug(!showDebug)}
+            >
+              <Bug className="w-4 h-4 mr-2" />
+              {showDebug ? 'Masquer' : 'Afficher'} les logs de debug
+            </Button>
+          </div>
         </div>
       </Card>
+
+      {/* Debug Panel */}
+      {showDebug && (
+        <Card className="w-full max-w-md mt-4 overflow-hidden">
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Bug className="w-4 h-4" />
+                Console Debug SMS
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDebugInfo({ logs: [] })}
+              >
+                Effacer
+              </Button>
+            </div>
+
+            {/* Warning about demo mode */}
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <div className="flex gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-medium text-amber-500">Mode Demo</p>
+                  <p className="text-muted-foreground mt-1">
+                    Aucun SMS reel n'est envoye. Le systeme genere un code aleatoire 
+                    stocke en memoire serveur. En production, integrez Twilio ou l'API Trade Republic.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Debug code display */}
+            {debugInfo.code && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs text-muted-foreground">Code de test:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="text-lg font-mono font-bold text-emerald-500">
+                      {debugInfo.code}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(debugInfo.code || '');
+                        addDebugLog('Code copie dans le presse-papier');
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Utilisez ce code pour vous connecter (mode demo uniquement)
+                </p>
+              </div>
+            )}
+
+            {/* Logs */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Logs ({debugInfo.logs.length})</p>
+              <div className="bg-surface-1 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-1">
+                {debugInfo.logs.length === 0 ? (
+                  <p className="text-muted-foreground italic">Aucun log. Entrez un numero et cliquez sur "Envoyer un SMS".</p>
+                ) : (
+                  debugInfo.logs.map((log, i) => (
+                    <div 
+                      key={i} 
+                      className={`${
+                        log.includes('ERREUR') 
+                          ? 'text-red-400' 
+                          : log.includes('CODE DEBUG') 
+                            ? 'text-emerald-400 font-bold' 
+                            : log.includes('succes')
+                              ? 'text-emerald-400'
+                              : 'text-muted-foreground'
+                      }`}
+                    >
+                      {log}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* API Info */}
+            <div className="p-3 rounded-lg bg-muted/50 text-xs space-y-2">
+              <p className="font-medium">Endpoints API:</p>
+              <div className="space-y-1 text-muted-foreground font-mono">
+                <p>POST /api/auth/sms - Envoyer code</p>
+                <p>PUT /api/auth/sms - Verifier code</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
