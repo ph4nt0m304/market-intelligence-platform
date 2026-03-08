@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   typescript: {
     tsconfigPath: './tsconfig.json',
   },
@@ -10,12 +9,6 @@ const nextConfig = {
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
-  // Enable Turbopack for faster builds
-  turbopack: {
-    resolveAlias: {
-      '@': './',
-    },
-  },
   // Security headers
   headers: async () => {
     return [
