@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { 
+  initiateLogin, 
+  verifyDevicePin, 
+  getSession, 
+  storeSession,
+  type TRSession 
+} from '@/lib/trade-republic-api';
 
-// In-memory store for verification codes (in production, use Redis or database)
-const verificationCodes = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+// Fallback demo mode for testing without Trade Republic
+const DEMO_MODE = process.env.TR_DEMO_MODE === 'true';
+const demoVerificationCodes = new Map<string, { code: string; expiresAt: number }>();
 
 /**
  * POST /api/auth/sms
- * Request SMS verification code
+ * Step 1: Initiate login - calls Trade Republic API to send SMS
+ * 
+ * Body: { phone: string, pin: string }
+ * 
+ * In DEMO_MODE (TR_DEMO_MODE=true), generates a fake code instead
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { phone } = body;
+    const { phone, pin } = body;
 
     if (!phone) {
       return NextResponse.json(
@@ -19,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate phone format (basic validation)
+    // Validate phone format
     const phoneRegex = /^\+?[0-9]{10,15}$/;
     const cleanPhone = phone.replace(/\s/g, '');
     
@@ -30,52 +42,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for rate limiting (max 3 requests per 5 minutes)
-    const existing = verificationCodes.get(cleanPhone);
-    if (existing && existing.attempts >= 3 && existing.expiresAt > Date.now()) {
-      const remainingTime = Math.ceil((existing.expiresAt - Date.now()) / 60000);
+    // Demo mode - generate fake code
+    if (DEMO_MODE) {
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      demoVerificationCodes.set(cleanPhone, {
+        code,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      console.log(`[DEMO MODE] Code for ${cleanPhone}: ${code}`);
+      
+      return NextResponse.json({
+        success: true,
+        message: 'SMS envoye (mode demo)',
+        demoMode: true,
+        debugCode: code, // Only in demo mode
+      });
+    }
+
+    // Production mode - call Trade Republic API
+    if (!pin) {
       return NextResponse.json(
-        { success: false, error: `Trop de tentatives. Reessayez dans ${remainingTime} minute(s).` },
-        { status: 429 }
+        { success: false, error: 'PIN Trade Republic requis' },
+        { status: 400 }
       );
     }
 
-    // In production, this would call the Trade Republic API to send SMS
-    // For demo purposes, we'll generate a verification code
-    // 
-    // Real Trade Republic API call would look like:
-    // const response = await fetch(`${TR_API_URL}/api/v1/auth/web/login`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ phoneNumber: cleanPhone, pin: '****' })
-    // });
+    const result = await initiateLogin(cleanPhone, pin);
 
-    // Generate a 4-digit code for demo
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    
-    // Store the code with 5 minute expiry
-    verificationCodes.set(cleanPhone, {
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-      attempts: (existing?.attempts || 0) + 1,
-    });
-
-    console.log(`[SMS API] Code de verification pour ${cleanPhone}: ${code}`);
-
-    // In production, integrate with SMS provider (Twilio, etc.) or Trade Republic API
-    // For now, we'll return success and log the code
+    if (result.error) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'SMS envoye avec succes',
-      // Only include code in development for testing
-      ...(process.env.NODE_ENV === 'development' && { debugCode: code }),
+      message: 'SMS envoye par Trade Republic',
+      processId: result.processId,
+      countdownInSeconds: result.countdownInSeconds || 60,
     });
 
   } catch (error) {
     console.error('[SMS API] Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Erreur lors de l\'envoi du SMS. Veuillez reessayer.' },
+      { success: false, error: 'Erreur lors de l\'envoi du SMS' },
       { status: 500 }
     );
   }
@@ -83,7 +94,9 @@ export async function POST(request: NextRequest) {
 
 /**
  * PUT /api/auth/sms
- * Verify SMS code
+ * Step 2: Verify the device PIN received by SMS
+ * 
+ * Body: { phone: string, code: string }
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -98,42 +111,118 @@ export async function PUT(request: NextRequest) {
     }
 
     const cleanPhone = phone.replace(/\s/g, '');
-    const stored = verificationCodes.get(cleanPhone);
 
-    if (!stored) {
-      return NextResponse.json(
-        { success: false, error: 'Aucun code envoye pour ce numero. Demandez un nouveau code.' },
-        { status: 404 }
-      );
+    // Demo mode verification
+    if (DEMO_MODE) {
+      const stored = demoVerificationCodes.get(cleanPhone);
+      
+      if (!stored) {
+        return NextResponse.json(
+          { success: false, error: 'Aucun code envoye pour ce numero' },
+          { status: 404 }
+        );
+      }
+
+      if (stored.expiresAt < Date.now()) {
+        demoVerificationCodes.delete(cleanPhone);
+        return NextResponse.json(
+          { success: false, error: 'Code expire' },
+          { status: 410 }
+        );
+      }
+
+      if (stored.code !== code) {
+        return NextResponse.json(
+          { success: false, error: 'Code incorrect' },
+          { status: 401 }
+        );
+      }
+
+      demoVerificationCodes.delete(cleanPhone);
+      
+      // Create a demo session
+      const demoSession: TRSession = {
+        phoneNumber: cleanPhone,
+        trSessionToken: `demo_session_${Date.now()}`,
+        rawCookies: [],
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+      
+      storeSession(demoSession);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Connexion reussie (mode demo)',
+        demoMode: true,
+      });
     }
 
-    if (stored.expiresAt < Date.now()) {
-      verificationCodes.delete(cleanPhone);
-      return NextResponse.json(
-        { success: false, error: 'Code expire. Demandez un nouveau code.' },
-        { status: 410 }
-      );
-    }
+    // Production mode - verify with Trade Republic
+    const result = await verifyDevicePin(cleanPhone, code);
 
-    if (stored.code !== code) {
+    if (!result.success) {
       return NextResponse.json(
-        { success: false, error: 'Code incorrect. Verifiez et reessayez.' },
+        { success: false, error: result.error },
         { status: 401 }
       );
     }
 
-    // Code is valid - delete it to prevent reuse
-    verificationCodes.delete(cleanPhone);
-
     return NextResponse.json({
       success: true,
-      message: 'Code verifie avec succes',
+      message: 'Connexion Trade Republic reussie',
+      session: {
+        phoneNumber: result.session?.phoneNumber,
+        expiresAt: result.session?.expiresAt,
+      },
     });
 
   } catch (error) {
     console.error('[SMS API] Verification error:', error);
     return NextResponse.json(
-      { success: false, error: 'Erreur lors de la verification. Veuillez reessayer.' },
+      { success: false, error: 'Erreur de verification' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/auth/sms
+ * Check if there's a valid session for the phone number
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const phone = searchParams.get('phone');
+
+    if (!phone) {
+      return NextResponse.json(
+        { success: false, error: 'Numero requis' },
+        { status: 400 }
+      );
+    }
+
+    const cleanPhone = phone.replace(/\s/g, '');
+    const session = getSession(cleanPhone);
+
+    if (!session) {
+      return NextResponse.json({
+        success: false,
+        hasSession: false,
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      hasSession: true,
+      expiresAt: session.expiresAt,
+      demoMode: DEMO_MODE,
+    });
+
+  } catch (error) {
+    console.error('[SMS API] Session check error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Erreur de verification de session' },
       { status: 500 }
     );
   }
