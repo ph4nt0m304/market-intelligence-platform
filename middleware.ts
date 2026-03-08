@@ -36,7 +36,7 @@ function shouldBypass(pathname: string): boolean {
   );
 }
 
-export function proxy(req: NextRequest) {
+export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (shouldBypass(pathname)) return NextResponse.next();
 
