@@ -6,20 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { APP_NAME } from '@/lib/branding';
-import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp, Bug, Copy, AlertTriangle, Info, Loader2 } from 'lucide-react';
+import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp, Bug, Loader2 } from 'lucide-react';
 
 interface DebugInfo {
-  code?: string;
   processId?: string;
   logs: string[];
-  demoMode?: boolean;
 }
 
 export function AuthForm() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [trPin, setTrPin] = useState(''); // Trade Republic account PIN (4 digits)
-  const [smsCode, setSmsCode] = useState(''); // SMS verification code
+  const [trPin, setTrPin] = useState('');
+  const [smsCode, setSmsCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [existingSession, setExistingSession] = useState<{ phone: string; lastUsed: string } | null>(null);
@@ -34,7 +32,6 @@ export function AuthForm() {
     loadExistingSession();
   }, []);
 
-  // Countdown timer for SMS resend
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -59,13 +56,11 @@ export function AuthForm() {
             lastUsed: formattedDate,
           });
 
-          // Check if session is still valid on backend
           const params = new URLSearchParams({ phone: storedPhone });
           const response = await fetch(`/api/auth/sms?${params}`);
           const data = await response.json();
           
           if (!data.hasSession) {
-            // Session expired on backend
             setExistingSession(null);
           }
         }
@@ -87,7 +82,7 @@ export function AuthForm() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    addDebugLog(`Initiation connexion: ${phoneNumber}`);
+    addDebugLog(`Initiation connexion Trade Republic: ${phoneNumber}`);
 
     try {
       if (!phoneNumber) {
@@ -96,15 +91,20 @@ export function AuthForm() {
         return;
       }
 
-      // PIN is optional in demo mode
-      addDebugLog(`Appel API: POST /api/auth/sms (phone: ${phoneNumber}, pin: ${trPin ? '****' : 'non fourni'})`);
+      if (!trPin || trPin.length !== 4) {
+        setError('PIN Trade Republic requis (4 chiffres)');
+        setIsLoading(false);
+        return;
+      }
+
+      addDebugLog(`Appel API: POST /api/auth/sms`);
       
       const response = await fetch('/api/auth/sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           phone: phoneNumber,
-          pin: trPin || undefined,
+          pin: trPin,
         }),
       });
 
@@ -118,24 +118,15 @@ export function AuthForm() {
         return;
       }
 
-      // Store debug info
       setDebugInfo(prev => ({
         ...prev,
-        demoMode: data.demoMode,
         processId: data.processId,
-        code: data.debugCode,
       }));
 
-      if (data.demoMode) {
-        addDebugLog(`MODE DEMO - Code: ${data.debugCode}`);
-      } else {
-        addDebugLog(`SMS Trade Republic envoye (processId: ${data.processId})`);
-      }
-
-      // Set countdown for resend
+      addDebugLog(`SMS Trade Republic envoye (processId: ${data.processId})`);
       setCountdown(data.countdownInSeconds || 60);
       setStep('sms');
-      addDebugLog('Passage a l\'etape verification SMS');
+      addDebugLog('En attente du code SMS...');
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Erreur reseau';
@@ -153,8 +144,8 @@ export function AuthForm() {
     addDebugLog(`Verification code SMS: ${smsCode}`);
 
     try {
-      if (!smsCode) {
-        setError('Code SMS requis');
+      if (!smsCode || smsCode.length !== 4) {
+        setError('Code SMS requis (4 chiffres)');
         setIsLoading(false);
         return;
       }
@@ -181,14 +172,12 @@ export function AuthForm() {
 
       addDebugLog('Verification reussie! Creation session...');
 
-      // Create session on backend
       const sessionResponse = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: phoneNumber,
           sessionId: `session_${Date.now()}`,
-          demoMode: data.demoMode,
         }),
       });
 
@@ -200,14 +189,12 @@ export function AuthForm() {
         return;
       }
 
-      // Store session locally
       localStorage.setItem('tradeSession', JSON.stringify({
         phoneNumber,
         timestamp: new Date().toISOString(),
-        demoMode: data.demoMode,
       }));
 
-      addDebugLog('Session creee, redirection...');
+      addDebugLog('Session creee, redirection vers dashboard...');
       router.push('/dashboard');
 
     } catch (err) {
@@ -243,10 +230,10 @@ export function AuthForm() {
         addDebugLog('Session valide, redirection...');
         router.push('/dashboard');
       } else {
-        setError('Session expiree');
+        setError('Session expiree, reconnexion necessaire');
         setExistingSession(null);
         localStorage.removeItem('tradeSession');
-        addDebugLog('Session expiree, reconnexion necessaire');
+        addDebugLog('Session expiree');
       }
     } catch {
       setError('Erreur de reprise de session');
@@ -255,7 +242,7 @@ export function AuthForm() {
     }
   };
 
-  const handleResendSms = async () => {
+  const handleResendSms = () => {
     if (countdown > 0) return;
     setStep('phone');
     setSmsCode('');
@@ -290,7 +277,7 @@ export function AuthForm() {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="tel"
-                    placeholder="+49 123 456789"
+                    placeholder="+33 6 12 34 56 78"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     className="pl-10"
@@ -298,7 +285,7 @@ export function AuthForm() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Format international (+49 pour Allemagne)
+                  Format international (+33 pour France, +49 pour Allemagne)
                 </p>
               </div>
 
@@ -308,16 +295,16 @@ export function AuthForm() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="password"
-                    placeholder="Votre PIN a 4 chiffres"
+                    placeholder="****"
                     value={trPin}
-                    onChange={(e) => setTrPin(e.target.value)}
-                    className="pl-10"
+                    onChange={(e) => setTrPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="pl-10 text-center tracking-widest font-mono"
                     maxLength={4}
                     disabled={isLoading}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Le PIN de votre compte Trade Republic (pas le code SMS)
+                  Votre PIN de connexion Trade Republic (4 chiffres)
                 </p>
               </div>
 
@@ -330,17 +317,17 @@ export function AuthForm() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading || !phoneNumber}
+                disabled={isLoading || !phoneNumber || trPin.length !== 4}
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Connexion...
+                    Connexion a Trade Republic...
                   </>
                 ) : (
                   <>
                     <MessageSquare className="w-4 h-4 mr-2" />
-                    Recevoir un SMS
+                    Recevoir le code SMS
                   </>
                 )}
               </Button>
@@ -352,36 +339,12 @@ export function AuthForm() {
             <form onSubmit={handleVerifySms} className="space-y-4">
               <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
                 <p className="text-sm text-primary">
-                  {debugInfo.demoMode 
-                    ? 'Mode demo - Utilisez le code affiche ci-dessous'
-                    : `Un SMS a ete envoye au ${phoneNumber}`}
+                  Un SMS a ete envoye au {phoneNumber}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Entrez le code de verification recu de Trade Republic
                 </p>
               </div>
-
-              {/* Demo mode code display */}
-              {debugInfo.demoMode && debugInfo.code && (
-                <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Code de test:</span>
-                    <div className="flex items-center gap-2">
-                      <code className="text-2xl font-mono font-bold text-emerald-500">
-                        {debugInfo.code}
-                      </code>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          navigator.clipboard.writeText(debugInfo.code || '');
-                          addDebugLog('Code copie');
-                        }}
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Code SMS</label>
@@ -389,7 +352,7 @@ export function AuthForm() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Code a 4 chiffres"
+                    placeholder="****"
                     value={smsCode}
                     onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
                     className="pl-10 text-center text-xl tracking-widest font-mono"
@@ -446,7 +409,7 @@ export function AuthForm() {
                   onClick={handleResendSms}
                   disabled={countdown > 0 || isLoading}
                 >
-                  {countdown > 0 ? `${countdown}s` : 'Renvoyer'}
+                  {countdown > 0 ? `Renvoyer (${countdown}s)` : 'Renvoyer SMS'}
                 </Button>
               </div>
             </form>
@@ -492,7 +455,7 @@ export function AuthForm() {
                 Continuer sans Trade Republic
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Acces limite aux donnees Binance
+                Acces limite aux donnees Binance uniquement
               </p>
             </div>
           )}
@@ -520,7 +483,7 @@ export function AuthForm() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium flex items-center gap-2">
                 <Bug className="w-4 h-4" />
-                Console Debug
+                Console Debug - Trade Republic API
               </h3>
               <Button
                 variant="ghost"
@@ -529,27 +492,6 @@ export function AuthForm() {
               >
                 Effacer
               </Button>
-            </div>
-
-            {/* Mode indicator */}
-            <div className={`p-3 rounded-lg ${debugInfo.demoMode ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
-              <div className="flex gap-2">
-                {debugInfo.demoMode ? (
-                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <Info className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                )}
-                <div className="text-xs">
-                  <p className={`font-medium ${debugInfo.demoMode ? 'text-amber-500' : 'text-emerald-500'}`}>
-                    {debugInfo.demoMode ? 'Mode Demo (TR_DEMO_MODE=true)' : 'Mode Production'}
-                  </p>
-                  <p className="text-muted-foreground mt-1">
-                    {debugInfo.demoMode 
-                      ? 'Codes generes localement, pas d\'appel a Trade Republic'
-                      : 'Connexion reelle a l\'API Trade Republic'}
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Process ID */}
@@ -564,7 +506,7 @@ export function AuthForm() {
               <p className="text-xs text-muted-foreground">Logs ({debugInfo.logs.length})</p>
               <div className="bg-surface-1 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-1">
                 {debugInfo.logs.length === 0 ? (
-                  <p className="text-muted-foreground italic">Aucun log</p>
+                  <p className="text-muted-foreground italic">En attente...</p>
                 ) : (
                   debugInfo.logs.map((log, i) => (
                     <div 
@@ -572,7 +514,7 @@ export function AuthForm() {
                       className={`${
                         log.includes('ERREUR') 
                           ? 'text-red-400' 
-                          : log.includes('Code') || log.includes('reussie')
+                          : log.includes('reussie') || log.includes('succes')
                             ? 'text-emerald-400'
                             : 'text-muted-foreground'
                       }`}
@@ -586,10 +528,10 @@ export function AuthForm() {
 
             {/* API Info */}
             <div className="p-3 rounded-lg bg-muted/50 text-xs space-y-2">
-              <p className="font-medium">API Trade Republic:</p>
+              <p className="font-medium">Trade Republic API</p>
               <div className="space-y-1 text-muted-foreground font-mono">
                 <p>POST /api/v1/auth/web/login</p>
-                <p>POST /api/v1/auth/web/login/{'{processId}'}/{'{pin}'}</p>
+                <p>POST /api/v1/auth/web/login/{'{processId}'}/{'{code}'}</p>
               </div>
             </div>
           </div>
