@@ -6,11 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { APP_NAME } from '@/lib/branding';
-import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp, Bug, Loader2 } from 'lucide-react';
+import { Lock, Phone, CheckCircle, MessageSquare, ArrowLeft, TrendingUp, Bug, Loader2, AlertTriangle, Copy, Check } from 'lucide-react';
 
 interface DebugInfo {
   processId?: string;
   logs: string[];
+}
+
+interface ErrorDetails {
+  status?: number;
+  statusText?: string;
+  message?: string;
+  code?: string;
+  raw?: string;
+  debug?: {
+    timestamp?: string;
+    phone?: string;
+    apiHost?: string;
+  };
 }
 
 export function AuthForm() {
@@ -26,6 +39,8 @@ export function AuthForm() {
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({ logs: [] });
   const [showDebug, setShowDebug] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -81,6 +96,7 @@ export function AuthForm() {
   const handleSendSms = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setErrorDetails(null);
     setIsLoading(true);
     addDebugLog(`Initiation connexion Trade Republic: ${phoneNumber}`);
 
@@ -98,6 +114,7 @@ export function AuthForm() {
       }
 
       addDebugLog(`Appel API: POST /api/auth/sms`);
+      addDebugLog(`Phone: ${phoneNumber}, PIN: ****`);
       
       const response = await fetch('/api/auth/sms', {
         method: 'POST',
@@ -109,11 +126,23 @@ export function AuthForm() {
       });
 
       const data = await response.json();
-      addDebugLog(`Reponse: ${response.status} - ${JSON.stringify(data)}`);
+      addDebugLog(`HTTP Status: ${response.status} ${response.statusText}`);
+      addDebugLog(`Response: ${JSON.stringify(data).substring(0, 500)}`);
 
       if (!response.ok || !data.success) {
-        setError(data.error || 'Erreur lors de l\'envoi');
-        addDebugLog(`ERREUR: ${data.error}`);
+        const errMsg = data.error || 'Erreur lors de l\'envoi';
+        setError(errMsg);
+        
+        // Store detailed error info
+        if (data.details || data.debug) {
+          setErrorDetails({
+            ...data.details,
+            debug: data.debug,
+          });
+          addDebugLog(`Details: ${JSON.stringify(data.details || {})}`);
+        }
+        
+        addDebugLog(`ERREUR: ${errMsg}`);
         setIsLoading(false);
         return;
       }
@@ -130,7 +159,8 @@ export function AuthForm() {
 
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Erreur reseau';
-      setError(errMsg);
+      setError(`Erreur de connexion: ${errMsg}`);
+      setErrorDetails({ message: errMsg });
       addDebugLog(`ERREUR RESEAU: ${errMsg}`);
     } finally {
       setIsLoading(false);

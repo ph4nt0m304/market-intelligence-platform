@@ -42,11 +42,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Trade Republic API
+    console.log(`[SMS API] Calling initiateLogin for ${cleanPhone}`);
     const result = await initiateLogin(cleanPhone, pin);
+    console.log(`[SMS API] Result:`, { 
+      hasProcessId: !!result.processId, 
+      hasError: !!result.error,
+      error: result.error,
+      details: result.details,
+    });
 
     if (result.error) {
       return NextResponse.json(
-        { success: false, error: result.error },
+        { 
+          success: false, 
+          error: result.error,
+          details: result.details,
+          debug: {
+            timestamp: new Date().toISOString(),
+            phone: cleanPhone,
+            apiHost: 'api.traderepublic.com',
+          }
+        },
         { status: 400 }
       );
     }
