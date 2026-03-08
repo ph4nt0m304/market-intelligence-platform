@@ -97,8 +97,6 @@ function Sidebar() {
 }
 
 function MobileNav() {
-  const pathname = usePathname();
-  
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -114,8 +112,6 @@ function MobileNav() {
 }
 
 export function TerminalLayout({ children, title, subtitle, actions }: TerminalLayoutProps) {
-  const pathname = usePathname();
-  
   return (
     <div className="flex h-screen bg-background">
       {/* Desktop Sidebar */}

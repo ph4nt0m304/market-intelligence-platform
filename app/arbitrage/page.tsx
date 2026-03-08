@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TerminalLayout, PanelGrid, StatCard } from '@/components/terminal/terminal-layout';
 import { SpreadGauge } from '@/components/terminal/spread-gauge';
 import { PriceTable } from '@/components/terminal/price-table';
@@ -24,14 +24,13 @@ export default function ArbitragePage() {
   const [selectedAsset, setSelectedAsset] = useState<AssetType>('GOLD');
   const [isLoading, setIsLoading] = useState(true);
   const [goldPrice, setGoldPrice] = useState<number>(0);
-  const [silverPrice, setSilverPrice] = useState<number>(0);
   const [eurUsdRate, setEurUsdRate] = useState<number>(1.08);
   const [goldSpreads, setGoldSpreads] = useState<SpreadResult[]>([]);
   const [silverSpreads, setSilverSpreads] = useState<SpreadResult[]>([]);
   const [spreadHistory, setSpreadHistory] = useState<SpreadHistoryPoint[]>([]);
   const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const snapshot = await getMarketSnapshot();
@@ -41,7 +40,6 @@ export default function ArbitragePage() {
       const silverPriceUsd = paxgPrice / 85;
       
       setGoldPrice(paxgPrice);
-      setSilverPrice(silverPriceUsd);
       setEurUsdRate(eurUsd);
       
       // Calculate spreads for gold instruments
@@ -149,13 +147,13 @@ export default function ArbitragePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedAsset]);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [selectedAsset]);
+  }, [fetchData]);
 
   const activeSpreads = selectedAsset === 'GOLD' ? goldSpreads : silverSpreads;
   const avgSpread = activeSpreads.length > 0

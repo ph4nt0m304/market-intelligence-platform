@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TerminalLayout, PanelGrid } from '@/components/terminal/terminal-layout';
+import { TerminalLayout } from '@/components/terminal/terminal-layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';

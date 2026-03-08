@@ -31,13 +31,13 @@ pip install --upgrade pip setuptools wheel
 # Install dependencies
 echo ""
 echo "Installing dependencies..."
-pip install requests xlwing
+pip install requests xlwings
 
 # Check installations
 echo ""
 echo "Verifying installations..."
 python3 -c "import requests; print(f'requests: {requests.__version__}')"
-python3 -c "import xlwing; print(f'xlwing: {xlwing.__version__}')"
+python3 -c "import xlwings; print(f'xlwings: {xlwings.__version__}')"
 
 # Create data directory
 echo ""
@@ -53,7 +53,7 @@ echo ""
 echo "Creating requirements.txt..."
 cat > requirements.txt << 'EOF'
 requests>=2.31.0
-xlwing>=0.30.0
+xlwings>=0.30.0
 EOF
 
 echo ""

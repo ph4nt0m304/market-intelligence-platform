@@ -12,17 +12,14 @@ export function ISINTrader() {
   const [selectedIsin, setSelectedIsin] = useState<ETFPrice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadETFs();
   }, []);
 
   const loadETFs = () => {
-    setIsLoading(true);
     const snapshot = getETFSnapshot();
     setEtfs(snapshot.etfs);
-    setIsLoading(false);
   };
 
   const handleSearch = (value: string) => {

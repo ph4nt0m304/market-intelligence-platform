@@ -54,15 +54,14 @@ export function SpreadGauge({
     md: 'h-2.5',
     lg: 'h-4',
   };
-  
-  const accentColor = assetType === 'GOLD' ? 'var(--gold)' : 'var(--silver)';
+  const valueAccentClass = assetType === 'GOLD' ? 'text-gold' : 'text-silver';
   
   return (
     <div className={cn('w-full', className)}>
       {showLabels && (
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs font-medium text-[var(--positive)]">ACHAT</span>
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className={cn('text-xs font-mono', valueAccentClass)}>
             {spreadPct > 0 ? '+' : ''}{spreadPct.toFixed(2)}%
           </span>
           <span className="text-xs font-medium text-[var(--negative)]">VENTE</span>
@@ -151,6 +150,7 @@ interface MiniSpreadGaugeProps {
 export function MiniSpreadGauge({ spreadPct, assetType, className }: MiniSpreadGaugeProps) {
   const isPositive = spreadPct < -0.5;
   const isNegative = spreadPct > 0.5;
+  const neutralColorClass = assetType === 'GOLD' ? 'bg-gold/40' : 'bg-silver/40';
   
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -160,7 +160,7 @@ export function MiniSpreadGauge({ spreadPct, assetType, className }: MiniSpreadG
             'h-full rounded-full transition-all',
             isPositive && 'bg-[var(--positive)]',
             isNegative && 'bg-[var(--negative)]',
-            !isPositive && !isNegative && 'bg-muted-foreground'
+            !isPositive && !isNegative && neutralColorClass
           )}
           style={{
             width: `${Math.min(100, Math.abs(spreadPct) * 50)}%`,

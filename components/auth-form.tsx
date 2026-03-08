@@ -46,7 +46,7 @@ export function AuthForm() {
         // Check backend for persistent session using stored phone
         if (storedPhone) {
           const params = new URLSearchParams({ phone: storedPhone });
-          const response = await fetch(`/api/auth/session?${params}`);
+          await fetch(`/api/auth/session?${params}`);
           // Session exists on backend, no additional action needed
           // The existingSession state is already set from localStorage
         }
@@ -177,7 +177,7 @@ export function AuthForm() {
         setExistingSession(null);
         localStorage.removeItem('tradeSession');
       }
-    } catch (error) {
+    } catch {
       setError('Impossible de reprendre la session.');
     } finally {
       setIsLoading(false);

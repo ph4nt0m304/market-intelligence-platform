@@ -9,14 +9,6 @@ import type { MarketState } from '@/lib/types/arbitrage';
 import { MARKET_HOURS_CONFIG } from '@/lib/config/instruments';
 
 /**
- * Check if a given date is a weekend
- */
-function isWeekend(date: Date): boolean {
-  const day = date.getDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
-}
-
-/**
  * Check if a given date is a German holiday
  * This is a simplified check - in production, use a proper holiday API
  */

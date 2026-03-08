@@ -30,14 +30,6 @@ export interface MarketSnapshot {
 // Binance API endpoints
 const BINANCE_API_BASE = 'https://api.binance.com/api/v3';
 
-// Symbol mappings - Binance uses specific trading pairs
-const SYMBOL_MAP = {
-  XAUUSDT: 'PAXGUSDT', // PAX Gold is the gold-backed token on Binance
-  XAGUSDT: 'XAGUSDT', // Silver might not be available, we'll use proxy calculation
-  EURUSDC: 'EURUSDC', // EUR/USDC pair for EUR/USD equivalent
-  EURUSDT: 'EURUSDT', // EUR/USDT as alternative
-} as const;
-
 /**
  * Fetch single ticker price from Binance
  */

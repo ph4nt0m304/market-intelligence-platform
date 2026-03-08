@@ -40,13 +40,13 @@ python -m pip install --upgrade pip setuptools wheel
 REM Install dependencies
 echo.
 echo Installing dependencies...
-pip install requests xlwing
+pip install requests xlwings
 
 REM Verify installations
 echo.
 echo Verifying installations...
 python -c "import requests; print(f'requests: {requests.__version__}')"
-python -c "import xlwing; print(f'xlwing: {xlwing.__version__}')"
+python -c "import xlwings; print(f'xlwings: {xlwings.__version__}')"
 
 REM Create directories
 echo.
@@ -59,7 +59,7 @@ echo.
 echo Creating requirements.txt...
 (
     echo requests^>=2.31.0
-    echo xlwing^>=0.30.0
+    echo xlwings^>=0.30.0
 ) > requirements.txt
 
 echo.

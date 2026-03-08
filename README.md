@@ -198,8 +198,8 @@ pnpm start
 - Vérifier la devise (USD/EUR)
 
 ### Excel n'exporte pas
-- Installer xlwing: `pip install xlwing`
-- Sur Windows: `python -m xlwing quickstart myapp`
+- Installer xlwings: `pip install xlwings`
+- Sur Windows: `python -m xlwings quickstart myapp`
 - Vérifier le chemin d'export
 
 ## Performance
@@ -219,3 +219,22 @@ pnpm start
 
 Made for traders who want to trade efficiently. 🚀
 
+
+## Python Live Excel (20s)
+
+`ash
+# one-shot export
+python scripts/python_api_client.py --export-excel
+
+# live mode, refresh every 20 seconds
+python scripts/python_api_client.py --export-excel --live --interval 20
+` 
+
+Optional realtime bridge with old bot:
+
+`env
+MARKET_BOT_URL=http://127.0.0.1:3000
+MARKET_BOT_TOKEN=
+` 
+
+When MARKET_BOT_URL is set, /api/data, /api/price/:pair, and /api/value/:pair use external bot snapshot (Binance + Trade Republic realtime).

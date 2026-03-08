@@ -33,7 +33,7 @@ export interface Portfolio {
  * @param phoneNo Phone number associated with Trade Republic account
  * @param pin PIN for the account
  */
-export async function initializeTradeRepublicAPI(phoneNo: string, pin: string) {
+export async function initializeTradeRepublicAPI(phoneNo: string, _pin: string) {
   try {
     // Import the API class - this would be used in a Node.js/server environment
     // const { TradeRepublicApi } = require('../trade-republic-api/src/index');
@@ -89,8 +89,8 @@ export async function fetchPortfolioData(api: TradeRepublicApi | null): Promise<
  */
 export function subscribeToPrice(
   api: TradeRepublicApi | null,
-  isin: string,
-  onUpdate: (price: number) => void
+  _isin: string,
+  _onUpdate: (price: number) => void
 ): (() => void) {
   if (!api) {
     console.log('[API Service] API not initialized, subscription skipped');
@@ -129,9 +129,9 @@ export function subscribeToPrice(
  */
 export async function executeTrade(
   api: TradeRepublicApi | null,
-  isin: string,
-  quantity: number,
-  type: 'BUY' | 'SELL'
+  _isin: string,
+  _quantity: number,
+  _type: 'BUY' | 'SELL'
 ): Promise<{ success: boolean; orderId?: string; error?: string }> {
   try {
     if (!api) {

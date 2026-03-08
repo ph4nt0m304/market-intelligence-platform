@@ -5,7 +5,6 @@ import {
   TR_ALL_INSTRUMENTS,
   BINANCE_INSTRUMENTS,
   getInstrumentByISIN,
-  getInstrumentsByAssetType,
 } from '@/lib/config/instruments';
 import type { AssetType } from '@/lib/types/arbitrage';
 

@@ -1,313 +1,330 @@
 #!/usr/bin/env python3
 """
-Trade Republic Python API Client
-Handles local data collection and Excel export with xlwing
+Market Intelligence Python bridge.
+
+Features:
+- Collect snapshot data from Next.js API
+- Export one-shot Excel files
+- Live Excel refresh loop (default every 20 seconds)
 """
 
+from __future__ import annotations
+
+import argparse
 import json
-import requests
 import logging
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, asdict
 import os
 import sys
+import time
+from datetime import datetime
+from typing import Any, Dict, Optional
 
-# Optional: xlwing for Excel export
+import requests
+
 try:
-    import xlwing as xw
-    HAS_XLWING = True
-except ImportError:
-    HAS_XLWING = False
-    logging.warning("xlwing not installed. Excel export disabled.")
+    import xlwings as xw
 
-# Configure logging
+    HAS_XLWINGS = True
+except ImportError:
+    HAS_XLWINGS = False
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("python_api_client")
 
 
-@dataclass
-class ETFPrice:
-    """ETF Price Data"""
-    isin: str
-    name: str
-    symbol: str
-    bid: float
-    ask: float
-    last: float
-    currency: str
-    timestamp: str
-    source: str = "Trade Republic"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+def _safe(value: Any, fallback: str = "-") -> Any:
+    return fallback if value is None else value
 
 
-@dataclass
-class PortfolioSnapshot:
-    """Portfolio Snapshot"""
-    timestamp: str
-    total_value_bid: float
-    total_value_ask: float
-    total_value_mid: float
-    currency: str
-    positions_count: int
-    etfs: List[ETFPrice]
+def _fmt_ts(value: Any) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value) / 1000.0).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return str(value)
+    return str(value)
 
 
-class TradeRepublicAPIClient:
-    """Trade Republic API Client for local Python"""
-    
-    def __init__(
-        self,
-        api_url: str = "http://localhost:3000",
-        timeout: int = 10
-    ):
-        self.api_url = api_url.rstrip('/')
+class ApiClient:
+    def __init__(self, api_url: str, timeout: int = 10) -> None:
+        self.api_url = api_url.rstrip("/")
         self.timeout = timeout
         self.session = requests.Session()
-    
+
+    def _get(self, path: str) -> Optional[Dict[str, Any]]:
+        try:
+            response = self.session.get(f"{self.api_url}{path}", timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            logger.error("GET %s failed: %s", path, exc)
+            return None
+
+    def get_legacy_data(self) -> Optional[Dict[str, Any]]:
+        return self._get("/api/data")
+
     def get_etf_snapshot(self) -> Optional[Dict[str, Any]]:
-        """Fetch ETF snapshot from dashboard API"""
-        try:
-            response = self.session.get(
-                f"{self.api_url}/api/etf/snapshot",
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch ETF snapshot: {e}")
-            return None
-    
-    def get_portfolio_snapshot(self) -> Optional[Dict[str, Any]]:
-        """Fetch portfolio snapshot from dashboard API"""
-        try:
-            response = self.session.get(
-                f"{self.api_url}/api/portfolio/snapshot",
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch portfolio snapshot: {e}")
-            return None
-    
-    def get_market_data(self) -> Optional[Dict[str, Any]]:
-        """Fetch market data from dashboard API"""
-        try:
-            response = self.session.get(
-                f"{self.api_url}/api/market/snapshot",
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch market data: {e}")
+        return self._get("/api/etf/snapshot")
+
+    def get_market_snapshot(self) -> Optional[Dict[str, Any]]:
+        return self._get("/api/market/snapshot")
+
+    def get_combined_snapshot(self) -> Optional[Dict[str, Any]]:
+        """
+        Prefer /api/data (legacy-compatible unified endpoint).
+        Fall back to combining /api/market/snapshot + /api/etf/snapshot.
+        """
+        data = self.get_legacy_data()
+        if data:
+            return data
+
+        market = self.get_market_snapshot()
+        etf = self.get_etf_snapshot()
+        if not market or not etf:
             return None
 
+        m = market.get("data", {})
+        ts = int(m.get("timestamp") or time.time() * 1000)
 
-class ExcelExporter:
-    """Export data to Excel using xlwing"""
-    
-    def __init__(self, filename: str = "trade_republic_data.xlsx"):
-        self.filename = filename
-        self.has_xlwing = HAS_XLWING
-    
-    def export_etf_data(self, etfs: List[Dict[str, Any]]) -> bool:
-        """Export ETF data to Excel"""
-        if not self.has_xlwing:
-            logger.error("xlwing not installed. Cannot export to Excel.")
+        def _mk_row(row: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "label": row.get("name"),
+                "isin": row.get("isin"),
+                "bid": row.get("bid"),
+                "ask": row.get("ask"),
+                "last": row.get("last"),
+                "price": row.get("last"),
+                "currency": row.get("currency"),
+                "source": row.get("source", "Trade Republic"),
+                "status": "OK",
+                "ts": row.get("timestamp", ts),
+            }
+
+        xau = m.get("xauUsd", {})
+        xag = m.get("xagUsd", {})
+        eur = m.get("eurUsd", {})
+        tr_rows = [_mk_row(row) for row in etf.get("data", [])]
+
+        return {
+            "xau": {
+                "symbol": xau.get("binanceSymbol"),
+                "bid": xau.get("price"),
+                "ask": xau.get("price"),
+                "price": xau.get("price"),
+                "ts": ts,
+            }
+            if xau
+            else None,
+            "xag": {
+                "symbol": xag.get("binanceSymbol"),
+                "bid": xag.get("price"),
+                "ask": xag.get("price"),
+                "price": xag.get("price"),
+                "ts": ts,
+            }
+            if xag
+            else None,
+            "eur": {
+                "symbol": eur.get("binanceSymbol"),
+                "bid": eur.get("price"),
+                "ask": eur.get("price"),
+                "price": eur.get("price"),
+                "ts": ts,
+            }
+            if eur
+            else None,
+            "xauEur": (m.get("xauEur") or {}).get("price"),
+            "xagEur": (m.get("xagEur") or {}).get("price"),
+            "tr": tr_rows,
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "binance+trade-republic",
+        }
+
+
+class ExcelWriter:
+    def __init__(self, excel_file: str) -> None:
+        self.excel_file = excel_file
+
+    def write_snapshot(self, snapshot: Dict[str, Any]) -> bool:
+        if not HAS_XLWINGS:
+            logger.error("xlwings is not installed. Install with: pip install xlwings")
             return False
-        
+
+        app = None
+        wb = None
         try:
-            # Create or open workbook
-            app = xw.App(visible=False)
-            wb = app.books.add()
-            ws = wb.sheets[0]
-            ws.name = "ETF Data"
-            
-            # Write headers
-            headers = ["ISIN", "Name", "Symbol", "Bid", "Ask", "Last", "Currency", "Timestamp", "Source"]
+            if os.path.exists(self.excel_file):
+                app = xw.App(visible=False, add_book=False)
+                wb = app.books.open(self.excel_file)
+            else:
+                app = xw.App(visible=False)
+                wb = app.books.add()
+
+            ws = wb.sheets["Prices"] if "Prices" in [s.name for s in wb.sheets] else wb.sheets.add("Prices")
+            ws.clear()
+
+            headers = ["Pair", "Bid", "Ask", "Price", "Source", "Timestamp"]
             ws.range("A1").value = headers
-            
-            # Format headers
-            header_range = ws.range("A1").expand("right", len(headers) - 1)
-            header_range.font.bold = True
-            header_range.fill.color = (79, 129, 189)
-            header_range.font.color = (255, 255, 255)
-            
-            # Write data
-            for i, etf in enumerate(etfs, start=2):
-                ws.range(f"A{i}").value = [
-                    etf.get("isin"),
-                    etf.get("name"),
-                    etf.get("symbol"),
-                    etf.get("bid"),
-                    etf.get("ask"),
-                    etf.get("last"),
-                    etf.get("currency"),
-                    etf.get("timestamp"),
-                    etf.get("source"),
+            ws.range("A1:F1").font.bold = True
+
+            row = 2
+            for key, label in [("xau", "XAUUSD"), ("xag", "XAGUSD"), ("eur", "EURUSD")]:
+                v = snapshot.get(key) or {}
+                ws.range(f"A{row}").value = [
+                    label,
+                    _safe(v.get("bid")),
+                    _safe(v.get("ask")),
+                    _safe(v.get("price")),
+                    "Binance",
+                    _fmt_ts(v.get("ts")),
                 ]
-            
-            # Auto-fit columns
+                row += 1
+
+            for key, label in [("xauEur", "XAUEUR"), ("xagEur", "XAGEUR")]:
+                ws.range(f"A{row}").value = [label, "-", "-", _safe(snapshot.get(key)), "Derived", _fmt_ts(snapshot.get("timestamp"))]
+                row += 1
+
+            tr_rows = snapshot.get("tr", [])
+            if tr_rows:
+                row += 1
+                ws.range(f"A{row}").value = "Trade Republic"
+                ws.range(f"A{row}").font.bold = True
+                row += 1
+                for tr in tr_rows:
+                    ws.range(f"A{row}").value = [
+                        tr.get("label") or tr.get("isin"),
+                        _safe(tr.get("bid")),
+                        _safe(tr.get("ask")),
+                        _safe(tr.get("price") if tr.get("price") is not None else tr.get("last")),
+                        tr.get("source", "Trade Republic"),
+                        _fmt_ts(tr.get("ts")),
+                    ]
+                    row += 1
+
+            row += 1
+            ws.range(f"A{row}").value = f"Updated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            ws.range(f"A{row}").font.italic = True
             ws.autofit()
-            
-            # Save workbook
-            wb.save(self.filename)
-            wb.close()
-            app.quit()
-            
-            logger.info(f"Successfully exported data to {self.filename}")
+
+            wb.save(self.excel_file)
             return True
-        
-        except Exception as e:
-            logger.error(f"Failed to export data: {e}")
+        except Exception as exc:
+            logger.error("Excel write failed: %s", exc)
             return False
-    
-    def export_portfolio_data(self, portfolio: Dict[str, Any]) -> bool:
-        """Export portfolio data to Excel"""
-        if not self.has_xlwing:
-            logger.error("xlwing not installed. Cannot export to Excel.")
-            return False
-        
-        try:
-            app = xw.App(visible=False)
-            wb = app.books.add()
-            
-            # Portfolio Summary Sheet
-            ws_summary = wb.sheets[0]
-            ws_summary.name = "Portfolio"
-            
-            ws_summary.range("A1").value = "Portfolio Summary"
-            ws_summary.range("A1").font.bold = True
-            ws_summary.range("A1").font.size = 14
-            
-            summary_data = [
-                ["Total Value (Bid)", portfolio.get("total_value_bid")],
-                ["Total Value (Ask)", portfolio.get("total_value_ask")],
-                ["Total Value (Mid)", portfolio.get("total_value_mid")],
-                ["Currency", portfolio.get("currency")],
-                ["Timestamp", portfolio.get("timestamp")],
-            ]
-            
-            for i, row in enumerate(summary_data, start=3):
-                ws_summary.range(f"A{i}").value = row[0]
-                ws_summary.range(f"B{i}").value = row[1]
-            
-            # Positions Sheet
-            ws_positions = wb.sheets.add()
-            ws_positions.name = "Positions"
-            
-            headers = ["ISIN", "Name", "Symbol", "Quantity", "Bid", "Ask", "Last"]
-            ws_positions.range("A1").value = headers
-            
-            positions = portfolio.get("positions", [])
-            for i, pos in enumerate(positions, start=2):
-                ws_positions.range(f"A{i}").value = [
-                    pos.get("isin"),
-                    pos.get("name"),
-                    pos.get("symbol"),
-                    pos.get("quantity"),
-                    pos.get("bid"),
-                    pos.get("ask"),
-                    pos.get("last"),
-                ]
-            
-            # Auto-fit all columns
-            for ws in wb.sheets:
-                ws.autofit()
-            
-            # Save
-            wb.save(self.filename)
-            wb.close()
-            app.quit()
-            
-            logger.info(f"Successfully exported portfolio to {self.filename}")
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to export portfolio: {e}")
-            return False
+        finally:
+            try:
+                if wb is not None:
+                    wb.close()
+            except Exception:
+                pass
+            try:
+                if app is not None:
+                    app.quit()
+            except Exception:
+                pass
 
 
-class DataCollector:
-    """Main data collection orchestrator"""
-    
-    def __init__(
-        self,
-        api_url: str = "http://localhost:3000",
-        output_dir: str = "./data"
-    ):
-        self.client = TradeRepublicAPIClient(api_url)
-        self.exporter = ExcelExporter()
-        self.output_dir = output_dir
-        
-        # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
-    
-    def collect_all(self) -> bool:
-        """Collect all data and export"""
-        logger.info("Starting data collection...")
-        
-        # Fetch data
-        etf_data = self.client.get_etf_snapshot()
-        portfolio_data = self.client.get_portfolio_snapshot()
-        market_data = self.client.get_market_data()
-        
-        if not etf_data:
-            logger.warning("Failed to fetch ETF data")
+def save_json(output_dir: str, payload: Dict[str, Any], prefix: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    out_path = os.path.join(output_dir, f"{prefix}_{stamp}.json")
+    with open(out_path, "w", encoding="utf-8") as fp:
+        json.dump(payload, fp, indent=2, ensure_ascii=False)
+    return out_path
+
+
+def run_once(
+    client: ApiClient,
+    output_dir: str,
+    writer: Optional[ExcelWriter],
+    export_excel: bool,
+    write_json: bool,
+) -> bool:
+    snapshot = client.get_combined_snapshot()
+    if not snapshot:
+        logger.error("No data available from API")
+        return False
+
+    if write_json:
+        json_path = save_json(output_dir, snapshot, "market_snapshot")
+        logger.info("Saved JSON snapshot: %s", json_path)
+
+    if export_excel and writer:
+        if writer.write_snapshot(snapshot):
+            logger.info("Excel exported: %s", writer.excel_file)
+        else:
             return False
-        
-        # Save JSON files
-        timestamp = datetime.now().isoformat()
-        
-        if etf_data:
-            json_file = os.path.join(self.output_dir, f"etf_data_{timestamp.replace(':', '-')}.json")
-            with open(json_file, 'w') as f:
-                json.dump(etf_data, f, indent=2)
-            logger.info(f"Saved ETF data to {json_file}")
-        
-        if portfolio_data:
-            json_file = os.path.join(self.output_dir, f"portfolio_{timestamp.replace(':', '-')}.json")
-            with open(json_file, 'w') as f:
-                json.dump(portfolio_data, f, indent=2)
-            logger.info(f"Saved portfolio data to {json_file}")
-        
-        if market_data:
-            json_file = os.path.join(self.output_dir, f"market_{timestamp.replace(':', '-')}.json")
-            with open(json_file, 'w') as f:
-                json.dump(market_data, f, indent=2)
-            logger.info(f"Saved market data to {json_file}")
-        
-        # Export to Excel if xlwing available
-        if HAS_XLWING and etf_data.get("data"):
-            excel_file = os.path.join(self.output_dir, f"trade_republic_{timestamp.replace(':', '-')}.xlsx")
-            self.exporter.filename = excel_file
-            self.exporter.export_etf_data(etf_data.get("data", []))
-        
-        logger.info("Data collection completed successfully")
+    return True
+
+
+def run_live(
+    client: ApiClient,
+    output_dir: str,
+    writer: Optional[ExcelWriter],
+    export_excel: bool,
+    write_json: bool,
+    interval_seconds: int,
+    max_iterations: Optional[int],
+) -> bool:
+    interval = max(1, interval_seconds)
+    if interval > 20:
+        logger.warning("Interval %ss too slow for realtime target. Clamping to 20s.", interval)
+        interval = 20
+
+    logger.info("Starting live mode. Refresh every %ss.", interval)
+    i = 0
+    try:
+        while True:
+            i += 1
+            ok = run_once(client, output_dir, writer, export_excel, write_json)
+            if not ok:
+                logger.warning("Iteration %s failed; retrying on next cycle.", i)
+
+            if max_iterations is not None and i >= max_iterations:
+                logger.info("Reached max iterations (%s).", max_iterations)
+                return ok
+
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        logger.info("Live loop interrupted by user.")
         return True
 
 
-def main():
-    """Main entry point"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Trade Republic Python API Client")
-    parser.add_argument("--api-url", default="http://localhost:3000", help="Dashboard API URL")
-    parser.add_argument("--output-dir", default="./data", help="Output directory for data")
-    parser.add_argument("--export-excel", action="store_true", help="Export to Excel")
-    
-    args = parser.parse_args()
-    
-    collector = DataCollector(args.api_url, args.output_dir)
-    success = collector.collect_all()
-    
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Market Intelligence Python bridge")
+    parser.add_argument("--api-url", default="http://localhost:3000", help="Base URL of Next.js app")
+    parser.add_argument("--output-dir", default="./data", help="Directory for JSON snapshots")
+    parser.add_argument("--excel-file", default="./data/market_data.xlsx", help="Excel output file")
+    parser.add_argument("--export-excel", action="store_true", help="Write Excel output")
+    parser.add_argument("--no-json", action="store_true", help="Disable JSON dump")
+    parser.add_argument("--live", action="store_true", help="Continuous mode")
+    parser.add_argument("--interval", type=int, default=20, help="Refresh interval in seconds (max 20 for realtime)")
+    parser.add_argument("--max-iterations", type=int, default=None, help="Stop after N loops in live mode")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    client = ApiClient(args.api_url)
+    writer = ExcelWriter(args.excel_file) if args.export_excel else None
+    write_json = not args.no_json
+
+    if args.export_excel and not HAS_XLWINGS:
+        logger.error("xlwings is required for Excel export. Install: pip install xlwings")
+        sys.exit(1)
+
+    success = (
+        run_live(client, args.output_dir, writer, args.export_excel, write_json, args.interval, args.max_iterations)
+        if args.live
+        else run_once(client, args.output_dir, writer, args.export_excel, write_json)
+    )
     sys.exit(0 if success else 1)
 
 

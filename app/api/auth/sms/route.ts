@@ -3,9 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 // In-memory store for verification codes (in production, use Redis or database)
 const verificationCodes = new Map<string, { code: string; expiresAt: number; attempts: number }>();
 
-// Trade Republic API endpoint (for reference)
-const TR_API_URL = 'https://api.traderepublic.com';
-
 /**
  * POST /api/auth/sms
  * Request SMS verification code

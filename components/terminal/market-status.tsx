@@ -7,8 +7,6 @@ import type { MarketState } from '@/lib/types/arbitrage';
 import {
   getTRMarketState,
   getMarketStatusText,
-  getTimeUntilTROpen,
-  getTimeUntilTRClose,
   areMarketsComparable,
   isWeekendGapPeriod,
 } from '@/lib/services/market-hours';

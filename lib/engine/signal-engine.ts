@@ -253,7 +253,7 @@ export function getActiveSignals(): TradingSignal[] {
   const now = Date.now();
   const signals: TradingSignal[] = [];
   
-  for (const [id, signal] of activeSignals) {
+  for (const [, signal] of activeSignals) {
     // Check if expired
     if (signal.expiresAt && new Date(signal.expiresAt).getTime() < now) {
       signal.status = 'EXPIRED';

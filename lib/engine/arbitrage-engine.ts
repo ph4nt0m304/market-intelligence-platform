@@ -6,10 +6,8 @@
  */
 
 import type {
-  AssetType,
   SpreadResult,
   TRInstrument,
-  NormalizedPrice,
   ConfidenceLevel,
   SpreadHistoryPoint,
 } from '@/lib/types/arbitrage';
@@ -34,8 +32,7 @@ const HISTORY_WINDOW = 100; // Number of data points for rolling statistics
  */
 export function calculateSpread(
   trPrice: number,
-  binancePrice: number,
-  currency: 'EUR' | 'USD' = 'EUR'
+  binancePrice: number
 ): { spreadAbs: number; spreadPct: number; spreadBps: number } {
   const spreadAbs = trPrice - binancePrice;
   const spreadPct = (spreadAbs / binancePrice) * 100;
@@ -208,8 +205,7 @@ export function calculateInstrumentSpread(
   // Calculate spread
   const { spreadAbs, spreadPct, spreadBps } = calculateSpread(
     trPrice,
-    normalizedBinancePrice,
-    instrument.currency
+    normalizedBinancePrice
   );
   
   // Calculate z-score
@@ -323,8 +319,7 @@ export function calculateAllSilverSpreads(
     
     const { spreadAbs, spreadPct, spreadBps } = calculateSpread(
       trData.price,
-      normalizedPrice,
-      instrument.currency
+      normalizedPrice
     );
     
     const { zScore, mean, stdDev } = calculateZScore(instrument.isin, spreadPct);

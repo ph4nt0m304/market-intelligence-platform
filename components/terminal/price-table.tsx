@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
 import { MiniSpreadGauge } from './spread-gauge';
 import { ArrowUpDown, ArrowUp, ArrowDown, Star, StarOff } from 'lucide-react';
 import type { SpreadResult, AssetType } from '@/lib/types/arbitrage';

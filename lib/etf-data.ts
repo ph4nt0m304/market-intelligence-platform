@@ -186,7 +186,7 @@ export function calculatePortfolioValue(
   let bidValue = 0;
   let askValue = 0;
 
-  positions.forEach(({ isin, quantity, bidPrice }) => {
+  positions.forEach(({ isin, quantity, bidPrice: _bidPrice }) => {
     const etf = etfData[isin];
     if (etf) {
       bidValue += etf.bid * quantity;

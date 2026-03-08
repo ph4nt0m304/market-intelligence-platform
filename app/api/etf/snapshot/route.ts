@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getETFSnapshot } from '@/lib/etf-data';
 
 /**
  * GET /api/etf/snapshot
  * Returns current ETF price snapshot with Bid/Ask/Last
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const snapshot = getETFSnapshot();
 
