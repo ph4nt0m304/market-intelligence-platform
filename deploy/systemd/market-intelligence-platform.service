@@ -1,0 +1,34 @@
+[Unit]
+Description=Market Intelligence Platform Next.js service
+After=network.target
+
+[Service]
+Type=simple
+User=market-intelligence
+Group=market-intelligence
+WorkingDirectory=/opt/market-intelligence-platform/current
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/etc/market-intelligence-platform/app.env
+ExecStart=/usr/bin/node /opt/market-intelligence-platform/current/.next/standalone/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+UMask=027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+ReadWritePaths=/opt/market-intelligence-platform/current/.next
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

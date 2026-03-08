@@ -1,0 +1,383 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* 
+ * Bloomberg Terminal-Inspired Theme
+ * Dark professional trading aesthetic with gold/silver accents
+ */
+
+:root {
+  /* Base colors - Light mode (fallback) */
+  --background: oklch(0.08 0 0);
+  --foreground: oklch(0.9 0 0);
+  --card: oklch(0.1 0 0);
+  --card-foreground: oklch(0.9 0 0);
+  --popover: oklch(0.1 0 0);
+  --popover-foreground: oklch(0.9 0 0);
+  --primary: oklch(0.78 0.12 85); /* Gold */
+  --primary-foreground: oklch(0.1 0 0);
+  --secondary: oklch(0.15 0 0);
+  --secondary-foreground: oklch(0.85 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.6 0 0);
+  --accent: oklch(0.75 0.08 250); /* Silver */
+  --accent-foreground: oklch(0.1 0 0);
+  --destructive: oklch(0.55 0.25 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.2 0 0);
+  --input: oklch(0.12 0 0);
+  --ring: oklch(0.78 0.12 85);
+  
+  /* Chart colors */
+  --chart-1: oklch(0.78 0.12 85); /* Gold */
+  --chart-2: oklch(0.75 0.08 250); /* Silver */
+  --chart-3: oklch(0.65 0.2 145); /* Green */
+  --chart-4: oklch(0.55 0.25 25); /* Red */
+  --chart-5: oklch(0.65 0.15 220); /* Blue */
+  
+  /* Trading-specific colors */
+  --positive: oklch(0.65 0.2 145);
+  --negative: oklch(0.55 0.25 25);
+  --warning: oklch(0.75 0.15 75);
+  --gold: oklch(0.78 0.12 85);
+  --silver: oklch(0.75 0.08 250);
+  
+  /* Surface colors */
+  --surface-1: oklch(0.1 0 0);
+  --surface-2: oklch(0.12 0 0);
+  --surface-3: oklch(0.15 0 0);
+  
+  /* Border variants */
+  --border-subtle: oklch(0.15 0 0);
+  --border-strong: oklch(0.25 0 0);
+  
+  /* Sidebar */
+  --sidebar: oklch(0.08 0 0);
+  --sidebar-foreground: oklch(0.85 0 0);
+  --sidebar-primary: oklch(0.78 0.12 85);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.15 0 0);
+  --sidebar-accent-foreground: oklch(0.85 0 0);
+  --sidebar-border: oklch(0.15 0 0);
+  --sidebar-ring: oklch(0.78 0.12 85);
+  
+  --radius: 0.375rem;
+}
+
+/* Dark mode - same as light for terminal aesthetic */
+.dark {
+  --background: oklch(0.08 0 0);
+  --foreground: oklch(0.9 0 0);
+  --card: oklch(0.1 0 0);
+  --card-foreground: oklch(0.9 0 0);
+  --popover: oklch(0.1 0 0);
+  --popover-foreground: oklch(0.9 0 0);
+  --primary: oklch(0.78 0.12 85);
+  --primary-foreground: oklch(0.1 0 0);
+  --secondary: oklch(0.15 0 0);
+  --secondary-foreground: oklch(0.85 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.6 0 0);
+  --accent: oklch(0.75 0.08 250);
+  --accent-foreground: oklch(0.1 0 0);
+  --destructive: oklch(0.55 0.25 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.2 0 0);
+  --input: oklch(0.12 0 0);
+  --ring: oklch(0.78 0.12 85);
+  --chart-1: oklch(0.78 0.12 85);
+  --chart-2: oklch(0.75 0.08 250);
+  --chart-3: oklch(0.65 0.2 145);
+  --chart-4: oklch(0.55 0.25 25);
+  --chart-5: oklch(0.65 0.15 220);
+  --sidebar: oklch(0.08 0 0);
+  --sidebar-foreground: oklch(0.85 0 0);
+  --sidebar-primary: oklch(0.78 0.12 85);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.15 0 0);
+  --sidebar-accent-foreground: oklch(0.85 0 0);
+  --sidebar-border: oklch(0.15 0 0);
+  --sidebar-ring: oklch(0.78 0.12 85);
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', 'SF Mono', Monaco, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-gold: var(--gold);
+  --color-silver: var(--silver);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Terminal-specific utilities */
+@layer components {
+  /* Price displays */
+  .price-positive {
+    @apply text-[var(--positive)] font-mono;
+  }
+  
+  .price-negative {
+    @apply text-[var(--negative)] font-mono;
+  }
+  
+  .price-neutral {
+    @apply text-foreground font-mono;
+  }
+  
+  /* Gold/Silver accent classes */
+  .text-gold {
+    color: var(--gold);
+  }
+  
+  .text-silver {
+    color: var(--silver);
+  }
+  
+  .bg-gold {
+    background-color: var(--gold);
+  }
+  
+  .bg-silver {
+    background-color: var(--silver);
+  }
+  
+  .border-gold {
+    border-color: var(--gold);
+  }
+  
+  .border-silver {
+    border-color: var(--silver);
+  }
+  
+  /* Terminal panel styling */
+  .terminal-panel {
+    @apply bg-card border border-border rounded-lg;
+  }
+  
+  .terminal-panel-header {
+    @apply px-3 py-2 border-b border-border flex items-center justify-between;
+  }
+  
+  .terminal-panel-title {
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  }
+  
+  .terminal-panel-content {
+    @apply p-3;
+  }
+  
+  /* Data table styling */
+  .terminal-table {
+    @apply w-full text-sm font-mono;
+  }
+  
+  .terminal-table th {
+    @apply text-xs uppercase tracking-wider text-muted-foreground font-medium text-left px-2 py-1.5 border-b border-border;
+  }
+  
+  .terminal-table td {
+    @apply px-2 py-1.5 border-b border-border-subtle;
+  }
+  
+  .terminal-table tr:hover td {
+    @apply bg-surface-2;
+  }
+  
+  /* Ticker strip */
+  .ticker-item {
+    @apply flex items-center gap-2 px-3 py-1;
+  }
+  
+  .ticker-symbol {
+    @apply text-xs font-medium uppercase;
+  }
+  
+  .ticker-price {
+    @apply font-mono text-sm;
+  }
+  
+  .ticker-change {
+    @apply text-xs font-mono;
+  }
+  
+  /* Spread gauge */
+  .spread-gauge {
+    @apply relative h-2 bg-surface-2 rounded-full overflow-hidden;
+  }
+  
+  .spread-gauge-fill {
+    @apply absolute inset-y-0 left-1/2 transition-all duration-300;
+  }
+  
+  /* Signal badge */
+  .signal-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide;
+  }
+  
+  .signal-buy {
+    @apply bg-[var(--positive)]/20 text-[var(--positive)];
+  }
+  
+  .signal-sell {
+    @apply bg-[var(--negative)]/20 text-[var(--negative)];
+  }
+  
+  .signal-watch {
+    @apply bg-[var(--warning)]/20 text-[var(--warning)];
+  }
+  
+  .signal-alert {
+    @apply bg-primary/20 text-primary;
+  }
+  
+  /* Connection status indicator */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-connected {
+    @apply bg-[var(--positive)];
+  }
+  
+  .status-disconnected {
+    @apply bg-[var(--negative)];
+  }
+  
+  .status-connecting {
+    @apply bg-[var(--warning)] animate-pulse;
+  }
+  
+  /* Heatmap cell */
+  .heatmap-cell {
+    @apply flex items-center justify-center text-xs font-mono transition-colors cursor-pointer;
+  }
+  
+  /* Scrollbar styling for terminal aesthetic */
+  .terminal-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .terminal-scrollbar::-webkit-scrollbar-track {
+    background: var(--surface-1);
+  }
+  
+  .terminal-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  
+  .terminal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+  }
+  
+  /* Blinking cursor for live data */
+  .live-indicator::after {
+    content: '';
+    @apply inline-block w-1.5 h-3 bg-primary ml-1 animate-pulse;
+  }
+  
+  /* Stale data indicator */
+  .stale-data {
+    @apply opacity-50;
+  }
+  
+  /* Number formatting */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Animations */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 30s linear infinite;
+}
+
+/* Flash effect for price updates */
+@keyframes price-flash-green {
+  0% {
+    background-color: oklch(0.65 0.2 145 / 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes price-flash-red {
+  0% {
+    background-color: oklch(0.55 0.25 25 / 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.flash-positive {
+  animation: price-flash-green 0.5s ease-out;
+}
+
+.flash-negative {
+  animation: price-flash-red 0.5s ease-out;
+}
